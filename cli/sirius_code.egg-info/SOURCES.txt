@@ -1,0 +1,9 @@
+setup.py
+sirius_code/__init__.py
+sirius_code/cli.py
+sirius_code.egg-info/PKG-INFO
+sirius_code.egg-info/SOURCES.txt
+sirius_code.egg-info/dependency_links.txt
+sirius_code.egg-info/entry_points.txt
+sirius_code.egg-info/requires.txt
+sirius_code.egg-info/top_level.txt

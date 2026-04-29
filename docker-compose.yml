@@ -1,0 +1,14 @@
+version: "3.9"
+services:
+  sirius-code:
+    build: .
+    container_name: sirius-code
+    restart: unless-stopped
+    ports:
+      - "5002:5002"
+    environment:
+      - SIRIUS_MASTER_KEY=sk-master-2f1a324700c53c60ad047235dbca0c48
+    volumes:
+      - ./data:/app/data
+      - ./app/agent.py:/app/agent.py
+      - ./providers:/app/providers

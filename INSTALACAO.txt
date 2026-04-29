@@ -1,0 +1,152 @@
+═══════════════════════════════════════════════════════════════
+           SIRIUS CODE — GUIA DE INSTALAÇÃO
+        Agente Autônomo de Programação | siriusopen.com.br
+═══════════════════════════════════════════════════════════════
+
+REQUISITOS
+──────────
+- Python 3.9 ou superior
+- pip (gerenciador de pacotes Python)
+- Conexão com internet
+- Chave de API Sirius Code (obtenha em siriusopen.com.br)
+
+INSTALAÇÃO
+──────────
+
+1. Instale o Sirius Code:
+
+   pip install sirius-code
+
+   No Linux/Mac, se precisar de permissão:
+   pip install sirius-code --user
+
+2. Configure sua chave de API:
+
+   sirius config --key SUA_CHAVE_AQUI
+
+3. Configure a URL do servidor (já vem configurada):
+
+   sirius config --url https://code.siriusopen.com.br
+
+4. Verifique a conexão:
+
+   sirius status
+
+   Resposta esperada: ✓ Sirius Code online
+
+
+COMO USAR
+─────────
+
+MODO INTERATIVO (recomendado):
+
+   sirius
+
+   Abre o terminal interativo. Digite sua tarefa e pressione Enter.
+   Use /help para ver os comandos disponíveis.
+
+MODO DIRETO (uma tarefa):
+
+   sirius "crie uma API REST em FastAPI"
+   sirius "refatore o arquivo app.py para usar async"
+   sirius "crie testes unitários para meu projeto"
+   sirius "analise os erros no arquivo main.py"
+   sirius "crie um Dockerfile para este projeto"
+
+
+EXEMPLOS PRÁTICOS
+─────────────────
+
+   # Criar uma API completa
+   sirius "crie uma API REST com autenticação JWT em FastAPI"
+
+   # Analisar e corrigir erros
+   sirius "analise e corrija os erros no arquivo app.py"
+
+   # Criar testes
+   sirius "crie testes unitários com pytest para todas as funções"
+
+   # Docker e deploy
+   sirius "crie um docker-compose com nginx, postgres e minha aplicação"
+
+   # Banco de dados
+   sirius "crie as migrations do banco usando SQLAlchemy"
+
+
+COMANDOS DO TERMINAL INTERATIVO
+────────────────────────────────
+
+   /help      Mostrar ajuda
+   /clear     Limpar a tela
+   /session   Ver ID da sessão atual
+   /exit      Sair
+
+
+CONFIGURAÇÕES
+─────────────
+
+   # Ver configurações atuais
+   sirius config --show
+
+   # Trocar chave de API
+   sirius config --key NOVA_CHAVE
+
+   # Verificar status
+   sirius status
+
+
+SOLUÇÃO DE PROBLEMAS
+────────────────────
+
+Erro "API key inválida":
+→ Verifique sua chave: sirius config --show
+→ Reconfigure: sirius config --key SUA_CHAVE
+
+Erro "Créditos insuficientes":
+→ Acesse siriusopen.com.br para recarregar
+
+Erro de conexão:
+→ Verifique sua internet
+→ Tente: sirius config --url https://code.siriusopen.com.br
+
+O Sirius não encontrou o arquivo:
+→ Execute o sirius no diretório do seu projeto
+→ Use caminhos absolutos: sirius "edite /caminho/completo/arquivo.py"
+
+
+SUPORTE
+───────
+- Site: siriusopen.com.br
+- Email: suporte@siriusopen.com.br
+- Telegram: @siriusopen
+
+
+═══════════════════════════════════════════════════════════════
+  Sirius Code v1.0.0 — Desenvolvido por SiriusOpen
+  Powered by Cerebras · Groq · Gemini (gratuitos por padrão)
+═══════════════════════════════════════════════════════════════
+
+FERRAMENTAS AVANÇADAS (v1.1)
+─────────────────────────────
+
+   # Analisar codebase completo
+   sirius "analise o projeto em /meu/projeto"
+
+   # Localizar bug com precisão
+   sirius "localize o bug: TypeError: 'NoneType' object is not subscriptable"
+
+   # Ciclo TDD completo
+   sirius "use TDD para criar função valida_email em /src/utils.py"
+
+   # Security scan
+   sirius "faça security scan em /meu/projeto"
+
+   # Análise AST
+   sirius "analise via AST o arquivo /src/main.py"
+
+   # Rodar testes automaticamente
+   sirius "execute os testes do projeto em /meu/projeto"
+
+═══════════════════════════════════════════════════════════════
+  Sirius Code v1.1 — AST + TDD + Security + Background Shells
+═══════════════════════════════════════════════════════════════

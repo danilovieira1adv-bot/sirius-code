@@ -1,0 +1,2 @@
+[console_scripts]
+sirius = sirius_code.cli:main

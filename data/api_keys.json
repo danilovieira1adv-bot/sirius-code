@@ -1,0 +1,70 @@
+{
+  "sk-master-change-this-now": {
+    "name": "Admin",
+    "email": "admin@siriusopen.ai",
+    "credits": 999999,
+    "created_at": 1777486157.383628
+  },
+  "sk-master-2f1a324700c53c60ad047235dbca0c48": {
+    "name": "Admin",
+    "email": "admin@siriusopen.ai",
+    "credits": 999999,
+    "created_at": 1777486201.8753014
+  },
+  "sk-sirius-2461582f31014174adefb700f66cda7f": {
+    "name": "Danilo Vieira",
+    "email": "danilo@siriusopen.ai",
+    "credits": 99991,
+    "created_at": 1777486204.32979,
+    "total_calls": 8
+  },
+  "sk-sirius-ee862676bd614055a7e20240ca788926": {
+    "name": "Danilo Vieira",
+    "email": "danilo@siriusopen.ai",
+    "credits": 99997,
+    "created_at": 1777490069.0729213,
+    "total_calls": 2
+  },
+  "sk-sirius-1c24d5d95d634a93a628f8d1f7fdd972": {
+    "name": "Danilo Vieira",
+    "email": "danilo@siriusopen.ai",
+    "credits": 99999,
+    "created_at": 1777491779.0441945,
+    "total_calls": 0
+  },
+  "sk-sirius-06bb14e1fd4c4e3aad7c67afcfa13412": {
+    "name": "Danilo Vieira",
+    "email": "danilo@siriusopen.ai",
+    "credits": 99999,
+    "created_at": 1777491805.9487557,
+    "total_calls": 0
+  },
+  "sk-sirius-0ecb5b1e26d64a9fbf5c75b2647f310c": {
+    "name": "Danilo Vieira",
+    "email": "danilo@siriusopen.ai",
+    "credits": 99996,
+    "created_at": 1777491976.3284168,
+    "total_calls": 3
+  },
+  "sk-sirius-4109cb8c17214932a65e55aa3b3f5f2a": {
+    "name": "Danilo Vieira",
+    "email": "danilo@siriusopen.ai",
+    "credits": 99999,
+    "created_at": 1777492266.778416,
+    "total_calls": 0
+  },
+  "sk-sirius-11afd4da9f19424a822882adf4fd8d69": {
+    "name": "Danilo Vieira",
+    "email": "danilo@siriusopen.ai",
+    "credits": 99999,
+    "created_at": 1777492304.079831,
+    "total_calls": 0
+  },
+  "sk-sirius-4327203140d64e70819bd31eb51f84b3": {
+    "name": "Danilo",
+    "email": "danilo@siriusopen.ai",
+    "credits": 99991,
+    "created_at": 1777495581.4601324,
+    "total_calls": 8
+  }
+}

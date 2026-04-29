@@ -1,0 +1,11 @@
+FROM python:3.12-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y gcc && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt .
+RUN pip install --no-cache-dir fastapi uvicorn python-dotenv SQLAlchemy aiosqlite \
+    openai httpx python-telegram-bot groq google-genai aiofiles
+COPY app/ /app/
+COPY providers/ /app/providers/
+COPY .env /app/.env
+RUN mkdir -p /app/data
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5002", "--log-level", "warning"]
