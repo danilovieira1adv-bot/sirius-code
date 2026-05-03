@@ -6,11 +6,13 @@ services:
     restart: unless-stopped
     ports:
       - "5002:5002"
+    env_file:
+      - .env
     environment:
       - SIRIUS_MASTER_KEY=sk-master-2f1a324700c53c60ad047235dbca0c48
     volumes:
       - ./data:/app/data
-      - ./app/agent.py:/app/agent.py
+      - ./app:/app
       - ./providers:/app/providers
       - /var/run/docker.sock:/var/run/docker.sock
       - /docker:/docker

@@ -2158,6 +2158,15 @@ async def run_agent(user_id, user_message, username=None, progress=None):
             await _auto_extract_memories(str(user_id), messages, user_message)
 
         await save_message(str(user_id), 'assistant', final)
+        semantic_cache.set(str(user_id), original_user_message, final)
+        try:
+            _elapsed_ms = int((time.time() - _t_start) * 1000)
+            _tok_in = sum(len(str(m.get('content','')))//4 for m in messages)
+            _tok_out = len(final)//4
+            record('llm_call', provider=provider_name, tokens_in=_tok_in,
+                   tokens_out=_tok_out, user_id=str(user_id))
+        except Exception:
+            pass
         # Registra para auto-aprimoramento
         await log_interaction(str(user_id), user_message[:200], final,
                              list(dict.fromkeys(tools_used)), i, True)
