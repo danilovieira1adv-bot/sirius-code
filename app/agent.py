@@ -1,6 +1,36 @@
 from dotenv import load_dotenv
 load_dotenv()
-import os, json, sys, asyncio
+import os, json, sys, asyncio, time
+try:
+    from tool_cache import make_cached_shell, make_cached_read_file, invalidate_file, get_cache_stats
+except ImportError:
+    def make_cached_shell(f): return f
+    def make_cached_read_file(f): return f
+    def invalidate_file(p): pass
+    def get_cache_stats(): return {}
+try:
+    from stale_results import compress_stale_tool_results
+except ImportError:
+    def compress_stale_tool_results(m): return m
+try:
+    from context_compressor import maybe_compress_messages
+except ImportError:
+    def maybe_compress_messages(m): return m
+try:
+    from phase5 import budget_forcing, semantic_cache, minify_tool_schemas, get_schema_mode
+except ImportError:
+    def budget_forcing(m, s, c): return m
+    class _SC:
+        def get(self, *a): return None
+        def set(self, *a): pass
+    semantic_cache = _SC()
+    def minify_tool_schemas(s, m='full'): return s
+    def get_schema_mode(s, c): return 'full'
+try:
+    from metrics import record, get_stats_report
+except ImportError:
+    def record(*a, **kw): pass
+    def get_stats_report(h=24): return 'Métricas não disponíveis'
 sys.stdout.reconfigure(line_buffering=True)
 from datetime import datetime
 from providers.registry import get_client, default_provider_name, PROVIDERS
@@ -53,6 +83,12 @@ Agente autônomo de IA. Pensa, planeja e executa como um engenheiro sênior expe
 COMO VOCÊ AGE — REGRA ABSOLUTA:
 Quando receber qualquer tarefa ou comando: EXECUTE USANDO AS FERRAMENTAS. Não descreva o que faria. Não mostre código em markdown. USE as ferramentas write_file, run_shell, run_tests etc para REALMENTE executar.
 NUNCA responda apenas com texto descrevendo o que faria — SEMPRE chame as ferramentas.
+
+REGRAS DE EDIÇÃO DE ARQUIVOS (C3 — economia de tokens):
+- Para MODIFICAR arquivos existentes: use edit_file(file_path, old_string, new_string) — passa só o diff
+- Para CRIAR arquivos novos: use write_file
+- NUNCA reescreva um arquivo inteiro se só precisa mudar algumas linhas
+- edit_file é 10x mais eficiente que write_file para modificações parciais
 Exemplo ERRADO: "Vou criar o arquivo calc.py com..."
 Exemplo CERTO: [chama write_file para criar o arquivo]
 
@@ -1474,6 +1510,7 @@ async def _security_scan(path, **_):
     return "\n".join(results)
 
 async def run_agent(user_id, user_message, username=None, progress=None):
+    _t_start = time.time()  # métricas
     profile          = await get_or_create_profile(str(user_id), username)
     # Detectar canal CLI para suprimir logs
     is_cli_channel = (str(user_id) == 'cli_user' or username == 'cli')
@@ -1751,6 +1788,7 @@ async def run_agent(user_id, user_message, username=None, progress=None):
           _edit_file,
         'github':     _github,
         'agent':      _agent_tool,
+        'self_stats': lambda period=24, **kw: get_stats_report(int(period)),
         'ask_user':   _ask_user,
         'notify':     _notify,
         'wordpress_post':      lambda **kw: _wordpress_post(**kw, _user_id=str(user_id)),
@@ -1926,10 +1964,39 @@ async def run_agent(user_id, user_message, username=None, progress=None):
     _force_tg = any(k in msg_lower for k in _tg_keywords) and tools_needed
 
     _413_providers = set()  # providers com 413 nesta sessão
+    # Semantic cache (Fase 5)
+    _sem_cached = semantic_cache.get(str(user_id), original_user_message)
+    if _sem_cached:
+        await save_message(str(user_id), 'assistant', _sem_cached)
+        return _sem_cached
     for i in range(max_iter):
         _tool_choice = {'type':'function','function':{'name':'telegram_send'}} if (_force_tg and i == 0) else 'auto'
         # Cerebras não suporta tools grandes — para mensagens simples, sem tools
-        _tools_para_chamada = TOOLS if (provider_name != 'cerebras' or tools_needed) else None
+        # C2: Tool grouping por intenção — não envia 60+ schemas de uma vez
+        if not tools_needed:
+            _tools_para_chamada = None
+        elif provider_name == 'cerebras':
+            # Cerebras: só essenciais
+            _CEREBRAS_NAMES = {'run_shell','write_file','read_file','edit_file',
+                               'remember','task_update','run_tests','search_web'}
+            _tools_para_chamada = [t for t in TOOLS if t.get('function',{}).get('name') in _CEREBRAS_NAMES]
+        elif any(k in msg_lower for k in ['test','pytest','unittest','coverage','assert']):
+            _TEST_NAMES = {'run_tests','run_shell','read_file','edit_file','write_file','remember'}
+            _tools_para_chamada = [t for t in TOOLS if t.get('function',{}).get('name') in _TEST_NAMES]
+        elif any(k in msg_lower for k in ['git','commit','push','pull','branch','merge','pr','github']):
+            _GIT_NAMES = {'run_shell','read_file','edit_file','write_file','github','remember','task_update'}
+            _tools_para_chamada = [t for t in TOOLS if t.get('function',{}).get('name') in _GIT_NAMES]
+        elif any(k in msg_lower for k in ['busca','pesquisa','search','web','internet','notícia']):
+            _WEB_NAMES = {'search_web','run_shell','remember','telegram_send'}
+            _tools_para_chamada = [t for t in TOOLS if t.get('function',{}).get('name') in _WEB_NAMES]
+        else:
+            # Default: coding tools essenciais
+            _CODE_NAMES = {'run_shell','write_file','read_file','edit_file','run_tests',
+                           'remember','task_update','agent','search_web','github'}
+            _tools_para_chamada = [t for t in TOOLS if t.get('function',{}).get('name') in _CODE_NAMES]
+        # Schema minification (Fase 5)
+        if _tools_para_chamada:
+            _tools_para_chamada = minify_tool_schemas(_tools_para_chamada, get_schema_mode(is_simple, is_complex))
         _tool_choice_para_chamada = _tool_choice if _tools_para_chamada else 'none'
         # ── RETRY COM TROCA DE PROVIDER ──────────────────────────
         resp = None
@@ -1962,13 +2029,13 @@ async def run_agent(user_id, user_message, username=None, progress=None):
                         tools=_tools_para_chamada,
                         tool_choice=_tool_choice_para_chamada,
                         max_tokens=1024 if _attempt_provider == 'cerebras' else 4096,
-                        temperature=0.7)
+                        temperature=0.0 if is_complex else 0.7)  # C1: temp=0 para código (DeepSeek)
                 else:
                     resp = await client.chat.completions.create(
                         model=_model_attempt,
                         messages=messages,
                         max_tokens=1024,
-                        temperature=0.7)
+                        temperature=0.0 if is_complex else 0.7)  # C1
                 _rm.record_success(_attempt_provider)
                 break
             except Exception as _api_err:

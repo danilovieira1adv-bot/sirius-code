@@ -12,3 +12,13 @@ services:
       - ./data:/app/data
       - ./app/agent.py:/app/agent.py
       - ./providers:/app/providers
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /docker:/docker
+    networks:
+      - sirius-open_sirius-open-net
+      - sirius-open-backup_sirius-open-net
+networks:
+  sirius-open_sirius-open-net:
+    external: true
+  sirius-open-backup_sirius-open-net:
+    external: true
