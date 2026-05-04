@@ -4,3 +4,8 @@ __pycache__/
 data/
 app/agent.py.bak*
 data/*.db
+__pycache__/
+*.pyc
+*.pyo
+*.bak
+*.bak.*
