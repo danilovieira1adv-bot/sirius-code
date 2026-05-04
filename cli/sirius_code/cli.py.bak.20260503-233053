@@ -344,7 +344,7 @@ def _attach_file(message, fpath, max_chars=20000):
 
 
 # ── Chat (streaming SSE) ──────────────────────────────────────────────────────
-async def chat(message, session_id=None, save_local=True):
+async def chat(message, session_id=None):
     import httpx
     api_url = get_config('api_url', 'http://localhost:5002')
     api_key = get_config('api_key', '')
@@ -432,7 +432,7 @@ async def chat(message, session_id=None, save_local=True):
                     raise Exception(data.get('message', 'Erro desconhecido'))
 
     # Persistir sessao localmente
-    if new_session and save_local:
+    if new_session:
         try:
             save_session_msg(new_session, 'user', message)
             save_session_msg(new_session, 'assistant', result_text, tools=tools_used)
@@ -481,114 +481,11 @@ def cmd_sessions():
     return sessions
 
 
-def cmd_sessions_clear():
-    if not SESSIONS_DIR.exists():
-        print(f"\n  {GRAY}Nenhuma sessao para apagar.{RESET}\n")
-        return
-    files = list(SESSIONS_DIR.glob('*.json'))
-    if not files:
-        print(f"\n  {GRAY}Nenhuma sessao para apagar.{RESET}\n")
-        return
-    print(f"\n  {YELLOW}Apagar {len(files)} sessao(oes) salva(s)?{RESET}")
-    try:
-        c = input(f"  {LAVENDER}Confirmar (y/N): {RESET}").strip().lower()
-    except (EOFError, KeyboardInterrupt):
-        print()
-        return
-    if c not in ('y', 'yes', 's', 'sim'):
-        print(f"  {GRAY}Cancelado.{RESET}\n")
-        return
-    n = 0
-    for f in files:
-        try:
-            f.unlink()
-            n += 1
-        except Exception:
-            pass
-    print(f"  {GREEN}{SYM_OK} {n} sessao(oes) apagada(s).{RESET}\n")
-
-
-def cmd_compact(session_id):
-    """Resume a sessao atual via API e retorna (new_sid, pending_context).
-    Apos /compact: nova sessao_id, contexto resumido prepended na proxima msg."""
-    if not session_id:
-        print(f"\n  {GRAY}Nada para compactar — sessao ainda nao iniciada.{RESET}\n")
-        return None, None
-
-    data = load_session(session_id)
-    if not data or not data.get('messages'):
-        print(f"\n  {GRAY}Sessao {session_id[:8]} esta vazia.{RESET}\n")
-        return None, None
-
-    msgs = data['messages']
-    if len(msgs) < 2:
-        print(f"\n  {GRAY}Sessao muito curta ({len(msgs)} msg) para compactar.{RESET}\n")
-        return None, None
-
-    # Monta transcript das ultimas msgs
-    transcript_parts = []
-    for m in msgs[-20:]:
-        role = 'Usuario' if m.get('role') == 'user' else 'Assistente'
-        c = (m.get('content') or '')[:1500]
-        transcript_parts.append(f"{role}: {c}")
-    transcript = '\n\n'.join(transcript_parts)
-
-    prompt = (
-        "[INTERNAL_COMPACT] Resuma a conversa abaixo em 2-3 paragrafos focando em: "
-        "(1) decisoes tomadas, (2) contexto tecnico relevante, (3) tarefas pendentes. "
-        "Seja conciso e direto.\n\n"
-        f"--- INICIO DA CONVERSA ({len(msgs)} mensagens) ---\n"
-        f"{transcript}\n"
-        "--- FIM DA CONVERSA ---"
-    )
-
-    print(f"\n  {GRAY}Compactando {len(msgs)} mensagens...{RESET}")
-    try:
-        result, _, credits, _ = asyncio.run(
-            chat(prompt, session_id=None, save_local=False)
-        )
-    except Exception as e:
-        print_error(f"Falha ao compactar: {e}")
-        return None, None
-
-    if not result or not result.strip():
-        print_error("Resumo vazio retornado pela API.")
-        return None, None
-
-    # Nova sessao_id, contexto = resumo
-    pending = (
-        "[CONTEXTO COMPACTADO - resumo da conversa anterior]\n"
-        f"{result.strip()}\n"
-        "[FIM DO CONTEXTO COMPACTADO]"
-    )
-
-    print(f"  {GREEN}{SYM_OK} Compactado{RESET} {GRAY}({len(result)} chars, {credits} cred){RESET}")
-    print(f"  {GRAY}Nova sessao iniciada com contexto resumido.{RESET}\n")
-    return None, pending
-
-
-def _build_resume_context(data, max_msgs=4, max_chars_per_msg=600):
-    """Serializa ultimas msgs da sessao para injetar como contexto."""
-    msgs = data.get('messages', [])
-    if not msgs:
-        return None
-    last = msgs[-max_msgs:]
-    parts = ["[CONTEXTO ANTERIOR - sessao retomada]"]
-    for m in last:
-        role = 'Usuario' if m.get('role') == 'user' else 'Assistente'
-        c = (m.get('content') or '')[:max_chars_per_msg]
-        if len(m.get('content') or '') > max_chars_per_msg:
-            c += '...'
-        parts.append(f"{role}: {c}")
-    parts.append("[FIM DO CONTEXTO]")
-    return '\n'.join(parts)
-
-
 def cmd_resume(arg):
     sessions = list_sessions(20)
     if not sessions:
         print(f"\n  {GRAY}Nenhuma sessao para retomar.{RESET}\n")
-        return None, None
+        return None
     target = None
     if arg:
         if arg.isdigit():
@@ -606,20 +503,20 @@ def cmd_resume(arg):
             choice = input(f"{LAVENDER}Sessao (1-{len(sessions)}, Enter=cancelar): {RESET}").strip()
         except (EOFError, KeyboardInterrupt):
             print()
-            return None, None
+            return None
         if not choice:
-            return None, None
+            return None
         if choice.isdigit() and 1 <= int(choice) <= len(sessions):
             target = sessions[int(choice) - 1]['id']
 
     if not target:
         print(f"\n  {RED}Sessao invalida.{RESET}\n")
-        return None, None
+        return None
 
     data = load_session(target)
     if not data:
         print_error("Sessao nao encontrada.")
-        return None, None
+        return None
     print()
     print(f"  {GREEN}{SYM_OK} Retomando sessao {LAVENDER}{target[:8]}{RESET} ({len(data['messages'])} msgs)")
     for m in data['messages'][-4:]:
@@ -630,7 +527,7 @@ def cmd_resume(arg):
         else:
             print(f"  {GRAY}{SYM_RESULT}{RESET}  {WHITE}{c}{RESET}")
     print()
-    return target, _build_resume_context(data)
+    return target
 
 
 # ── Comandos ──────────────────────────────────────────────────────────────────
@@ -664,7 +561,6 @@ def cmd_repl():
     print()
 
     session_id = None
-    pending_context = None
 
     while True:
         try:
@@ -689,11 +585,9 @@ def cmd_repl():
                 ('/new',                   'Nova sessao (limpa contexto)'),
                 ('/session',               'Ver sessao atual'),
                 ('/sessions',              'Listar sessoes salvas'),
-                ('/sessions clear',        'Apagar todas as sessoes salvas'),
-                ('/resume [n|id]',         'Retomar sessao (injeta contexto)'),
-                ('/compact',               'Resumir conversa e iniciar nova sessao'),
+                ('/resume [n|id]',         'Retomar sessao anterior'),
                 ('/cost',                  'Ver creditos e metricas'),
-                ('/file <path> <prompt>',  'Anexar arquivo (suporta container:/path)'),
+                ('/file <path> <prompt>',  'Anexar arquivo na proxima mensagem'),
                 ('/btw <texto>',           'Pergunta rapida sem perder contexto'),
             ]
             for cmd, desc in cmds:
@@ -718,31 +612,19 @@ def cmd_repl():
             print(f"\n  {GREEN}{SYM_OK} Nova sessao iniciada.{RESET}\n")
             continue
 
-        if user_input.startswith('/sessions'):
-            arg = user_input[len('/sessions'):].strip()
-            if arg == 'clear':
-                cmd_sessions_clear()
-            else:
-                cmd_sessions()
+        if user_input == '/sessions':
+            cmd_sessions()
             continue
 
         if user_input.startswith('/resume'):
             arg = user_input[len('/resume'):].strip()
-            new_sid, ctx = cmd_resume(arg)
+            new_sid = cmd_resume(arg)
             if new_sid:
                 session_id = new_sid
-                pending_context = ctx
             continue
 
         if user_input == '/cost':
             cmd_cost()
-            continue
-
-        if user_input == '/compact':
-            new_sid, ctx = cmd_compact(session_id)
-            if ctx:
-                session_id = new_sid
-                pending_context = ctx
             continue
 
         if user_input.startswith('/file '):
@@ -759,10 +641,6 @@ def cmd_repl():
 
         if user_input.startswith('/btw '):
             user_input = f"[BTW] {user_input[5:]}"
-
-        if pending_context:
-            user_input = f"{pending_context}\n\n{user_input}"
-            pending_context = None
 
         # Processa tarefa
         print(_sep())
@@ -827,20 +705,8 @@ def main():
         cmd_sessions()
         return
 
-    # Headless: sirius "task" | sirius --file foo.py "explique" | sirius --resume 1 "..."
+    # Headless: sirius "task" ou sirius --file foo.py "explique"
     file_arg = None
-    resume_arg = None
-    hl_session_id = None
-    hl_pending_context = None
-
-    if '--resume' in args:
-        idx = args.index('--resume')
-        if idx + 1 < len(args):
-            resume_arg = args[idx + 1]
-            args = args[:idx] + args[idx + 2:]
-        else:
-            args = args[:idx] + args[idx + 1:]
-
     if '--file' in args:
         idx = args.index('--file')
         if idx + 1 < len(args):
@@ -849,12 +715,6 @@ def main():
 
     message = ' '.join(args)
 
-    if resume_arg:
-        hl_session_id, hl_pending_context = cmd_resume(resume_arg)
-        if not hl_session_id:
-            print_error(f"Nao foi possivel retomar sessao '{resume_arg}'")
-            sys.exit(1)
-
     if file_arg:
         try:
             message = _attach_file(message, file_arg)
@@ -862,12 +722,9 @@ def main():
             print_error(f"Erro ao ler {file_arg}: {e}")
             sys.exit(1)
 
-    if hl_pending_context:
-        message = f"{hl_pending_context}\n\n{message}"
-
     spinner.start()
     try:
-        result, _, credits, tools = asyncio.run(chat(message, hl_session_id))
+        result, _, credits, tools = asyncio.run(chat(message))
         spinner.stop()
         print_response(result)
         if credits and credits > 0:

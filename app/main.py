@@ -8,11 +8,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 
-# Configurar paths
 sys.path.insert(0, '/app')
 sys.path.insert(0, '/app/providers')
 
-# Carregar .env
 from dotenv import load_dotenv
 load_dotenv('/app/.env')
 
@@ -32,14 +30,14 @@ def save_keys():
     with open(KEYS_FILE, "w") as f:
         json.dump(API_KEYS, f, indent=2)
 
-def validate_key(key: str) -> dict:
+def validate_key(key):
     if not key:
-        raise HTTPException(401, "API key obrigatória. Use: sirius config --key SUA_CHAVE")
+        raise HTTPException(401, "API key obrigatoria. Use: sirius config --key SUA_CHAVE")
     if key not in API_KEYS:
-        raise HTTPException(401, "API key inválida.")
+        raise HTTPException(401, "API key invalida.")
     user = API_KEYS[key]
     if user.get("credits", 0) <= 0:
-        raise HTTPException(402, "Créditos insuficientes. Recarregue em siriusopen.ai")
+        raise HTTPException(402, "Creditos insuficientes. Recarregue em siriusopen.ai")
     return user
 
 class ChatRequest(BaseModel):
@@ -52,6 +50,11 @@ class KeyRequest(BaseModel):
     name: str
     email: str
     credits: int = 100
+
+_LONG_FIELDS = {"content", "old_str", "new_str", "old", "new", "text", "body", "code"}
+def _truncate_arg(k, v):
+    s = str(v)
+    return s[:1500] if k in _LONG_FIELDS else s[:120]
 
 @app.on_event("startup")
 async def startup():
@@ -74,30 +77,88 @@ async def status(x_api_key: str = Header(None)):
     validate_key(x_api_key)
     return {"ok": True, "message": "Sirius Code online"}
 
+@app.get("/api/cli/usage")
+async def usage(x_api_key: str = Header(None)):
+    user = validate_key(x_api_key)
+    return {
+        "name": user.get("name", ""),
+        "credits_remaining": user.get("credits", 0),
+        "total_calls": user.get("total_calls", 0),
+        "total_tools": user.get("total_tools", 0),
+        "total_credits_used": user.get("total_credits_used", 0),
+    }
+
 @app.post("/api/cli/chat")
 async def chat(req: ChatRequest, x_api_key: str = Header(None)):
     user = validate_key(x_api_key)
 
     async def generate():
         session_id = req.session_id or str(uuid.uuid4())
-        yield f"data: {json.dumps({'event': 'session', 'session_id': session_id})}\n\n"
+        yield "data: " + json.dumps({"event": "session", "session_id": session_id}) + chr(10)+chr(10)
         try:
             from agent import run_agent
-            # Inicializar DB
             from memory import init_db
             await init_db()
-
             user_id = f"sc_{x_api_key[:8]}"
-            result = await run_agent(user_id, req.message, username=user.get("name","user"))
 
-            # Descontar crédito
-            API_KEYS[x_api_key]["credits"] -= 1
+            queue = asyncio.Queue()
+            tools_count = [0]
+
+            def on_tool_start(tool_name, args):
+                tools_count[0] += 1
+                try:
+                    safe_args = {k: _truncate_arg(k, v) for k, v in (args or {}).items()}
+                except Exception:
+                    safe_args = {}
+                queue.put_nowait(json.dumps({
+                    "event": "tool_start",
+                    "name": tool_name,
+                    "args": safe_args
+                }))
+
+            def on_tool_result(result):
+                queue.put_nowait(json.dumps({
+                    "event": "tool_result",
+                    "result": str(result)[:500]
+                }))
+
+            progress = {
+                "text": "",
+                "on_tool_start": on_tool_start,
+                "on_tool_result": on_tool_result,
+            }
+
+            agent_task = asyncio.create_task(
+                run_agent(user_id, req.message, username="cli", progress=progress)
+            )
+
+            while not agent_task.done():
+                try:
+                    evt = await asyncio.wait_for(queue.get(), timeout=0.1)
+                    yield "data: " + evt + chr(10)+chr(10)
+                except asyncio.TimeoutError:
+                    continue
+
+            while not queue.empty():
+                evt = queue.get_nowait()
+                yield "data: " + evt + chr(10)+chr(10)
+
+            result = agent_task.result()
+
+            credits_used = 1 + tools_count[0]
+            API_KEYS[x_api_key]["credits"] = max(0, API_KEYS[x_api_key].get("credits", 0) - credits_used)
             API_KEYS[x_api_key]["total_calls"] = API_KEYS[x_api_key].get("total_calls", 0) + 1
+            API_KEYS[x_api_key]["total_tools"] = API_KEYS[x_api_key].get("total_tools", 0) + tools_count[0]
+            API_KEYS[x_api_key]["total_credits_used"] = API_KEYS[x_api_key].get("total_credits_used", 0) + credits_used
             save_keys()
-
-            yield f"data: {json.dumps({'event': 'done', 'text': result})}\n\n"
+            yield "data: " + json.dumps({
+                "event": "done",
+                "text": result,
+                "credits_used": credits_used,
+                "tools_count": tools_count[0]
+            }) + chr(10)+chr(10)
         except Exception as e:
-            yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+            yield "data: " + json.dumps({"event": "error", "message": str(e)}) + chr(10)+chr(10)
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
@@ -121,7 +182,7 @@ async def list_keys(x_api_key: str = Header(None)):
     if x_api_key != MASTER_KEY:
         raise HTTPException(403, "Acesso negado")
     return {"keys": [
-        {"key": k[:20]+"...", "name": v["name"], 
+        {"key": k[:20]+"...", "name": v["name"],
          "credits": v["credits"], "calls": v.get("total_calls",0)}
         for k, v in API_KEYS.items()
     ]}

@@ -66,5 +66,14 @@
     "credits": 99991,
     "created_at": 1777495581.4601324,
     "total_calls": 8
+  },
+  "sk-sirius-2f1ede9028c541c2ba10249d9997d960": {
+    "name": "Danilo",
+    "email": "danilo@siriusopen.ai",
+    "credits": 99835,
+    "created_at": 1777497460.6108725,
+    "total_calls": 120,
+    "total_tools": 44,
+    "total_credits_used": 98
   }
 }

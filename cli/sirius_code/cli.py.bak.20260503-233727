@@ -508,65 +508,6 @@ def cmd_sessions_clear():
     print(f"  {GREEN}{SYM_OK} {n} sessao(oes) apagada(s).{RESET}\n")
 
 
-def cmd_compact(session_id):
-    """Resume a sessao atual via API e retorna (new_sid, pending_context).
-    Apos /compact: nova sessao_id, contexto resumido prepended na proxima msg."""
-    if not session_id:
-        print(f"\n  {GRAY}Nada para compactar — sessao ainda nao iniciada.{RESET}\n")
-        return None, None
-
-    data = load_session(session_id)
-    if not data or not data.get('messages'):
-        print(f"\n  {GRAY}Sessao {session_id[:8]} esta vazia.{RESET}\n")
-        return None, None
-
-    msgs = data['messages']
-    if len(msgs) < 2:
-        print(f"\n  {GRAY}Sessao muito curta ({len(msgs)} msg) para compactar.{RESET}\n")
-        return None, None
-
-    # Monta transcript das ultimas msgs
-    transcript_parts = []
-    for m in msgs[-20:]:
-        role = 'Usuario' if m.get('role') == 'user' else 'Assistente'
-        c = (m.get('content') or '')[:1500]
-        transcript_parts.append(f"{role}: {c}")
-    transcript = '\n\n'.join(transcript_parts)
-
-    prompt = (
-        "[INTERNAL_COMPACT] Resuma a conversa abaixo em 2-3 paragrafos focando em: "
-        "(1) decisoes tomadas, (2) contexto tecnico relevante, (3) tarefas pendentes. "
-        "Seja conciso e direto.\n\n"
-        f"--- INICIO DA CONVERSA ({len(msgs)} mensagens) ---\n"
-        f"{transcript}\n"
-        "--- FIM DA CONVERSA ---"
-    )
-
-    print(f"\n  {GRAY}Compactando {len(msgs)} mensagens...{RESET}")
-    try:
-        result, _, credits, _ = asyncio.run(
-            chat(prompt, session_id=None, save_local=False)
-        )
-    except Exception as e:
-        print_error(f"Falha ao compactar: {e}")
-        return None, None
-
-    if not result or not result.strip():
-        print_error("Resumo vazio retornado pela API.")
-        return None, None
-
-    # Nova sessao_id, contexto = resumo
-    pending = (
-        "[CONTEXTO COMPACTADO - resumo da conversa anterior]\n"
-        f"{result.strip()}\n"
-        "[FIM DO CONTEXTO COMPACTADO]"
-    )
-
-    print(f"  {GREEN}{SYM_OK} Compactado{RESET} {GRAY}({len(result)} chars, {credits} cred){RESET}")
-    print(f"  {GRAY}Nova sessao iniciada com contexto resumido.{RESET}\n")
-    return None, pending
-
-
 def _build_resume_context(data, max_msgs=4, max_chars_per_msg=600):
     """Serializa ultimas msgs da sessao para injetar como contexto."""
     msgs = data.get('messages', [])
@@ -689,11 +630,9 @@ def cmd_repl():
                 ('/new',                   'Nova sessao (limpa contexto)'),
                 ('/session',               'Ver sessao atual'),
                 ('/sessions',              'Listar sessoes salvas'),
-                ('/sessions clear',        'Apagar todas as sessoes salvas'),
-                ('/resume [n|id]',         'Retomar sessao (injeta contexto)'),
-                ('/compact',               'Resumir conversa e iniciar nova sessao'),
+                ('/resume [n|id]',         'Retomar sessao anterior'),
                 ('/cost',                  'Ver creditos e metricas'),
-                ('/file <path> <prompt>',  'Anexar arquivo (suporta container:/path)'),
+                ('/file <path> <prompt>',  'Anexar arquivo na proxima mensagem'),
                 ('/btw <texto>',           'Pergunta rapida sem perder contexto'),
             ]
             for cmd, desc in cmds:
@@ -736,13 +675,6 @@ def cmd_repl():
 
         if user_input == '/cost':
             cmd_cost()
-            continue
-
-        if user_input == '/compact':
-            new_sid, ctx = cmd_compact(session_id)
-            if ctx:
-                session_id = new_sid
-                pending_context = ctx
             continue
 
         if user_input.startswith('/file '):

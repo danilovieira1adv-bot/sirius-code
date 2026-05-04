@@ -689,11 +689,9 @@ def cmd_repl():
                 ('/new',                   'Nova sessao (limpa contexto)'),
                 ('/session',               'Ver sessao atual'),
                 ('/sessions',              'Listar sessoes salvas'),
-                ('/sessions clear',        'Apagar todas as sessoes salvas'),
-                ('/resume [n|id]',         'Retomar sessao (injeta contexto)'),
-                ('/compact',               'Resumir conversa e iniciar nova sessao'),
+                ('/resume [n|id]',         'Retomar sessao anterior'),
                 ('/cost',                  'Ver creditos e metricas'),
-                ('/file <path> <prompt>',  'Anexar arquivo (suporta container:/path)'),
+                ('/file <path> <prompt>',  'Anexar arquivo na proxima mensagem'),
                 ('/btw <texto>',           'Pergunta rapida sem perder contexto'),
             ]
             for cmd, desc in cmds:
